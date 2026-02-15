@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.AddressableAssets;
+using UnityEngine.InputSystem;
 using UnityEngine.ResourceManagement.AsyncOperations;
 using System.Collections.Generic;
 
@@ -14,8 +15,15 @@ public class TowerManager : MonoBehaviour
 
     private List<FireCommand> commandBuffer;
 
+    private GameControls controls;
+
+    private List<SpawnedCannonBullet> bulletObjs;
+    private Stack<int> notActiveBulletIds;
+
     void Awake()
     {
+        controls = new GameControls();
+
         towersData = new List<TowerData>();
         towersWithCannon = new List<int>();
         
@@ -32,6 +40,19 @@ public class TowerManager : MonoBehaviour
         towerObjs = new List<SpawnedTower>();
         for (int i = 0; i < towersData.Count; i++)
             towerObjs.Add(default);
+
+        bulletObjs = new List<SpawnedCannonBullet>();
+        notActiveBulletIds = new Stack<int>();
+    }
+
+    private void OnEnable()
+    {
+        controls.Gameplay.Enable();
+    }
+
+    private void OnDisable()
+    {
+        controls.Gameplay.Disable();
     }
 
     void Start()
@@ -66,13 +87,17 @@ public class TowerManager : MonoBehaviour
         UpdateInput();
 
         ProcessCommands();
+
+        OperateBullets();
     }
 
     void UpdateInput()
     {
-        if (Input.GetMouseButtonDown(0))
+        if (controls.Gameplay.Fire.WasPerformedThisFrame())
         {
-            Vector3 worldPos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+            Vector2 mouseScreenPos = controls.Gameplay.PointerPosition.ReadValue<Vector2>();
+            
+            Vector3 worldPos = Camera.main.ScreenToWorldPoint(mouseScreenPos);
             Vector2 targetPos = new Vector2(worldPos.x, worldPos.y);
 
             foreach (int towerIndex in towersWithCannon)
@@ -103,20 +128,50 @@ public class TowerManager : MonoBehaviour
     void FireBullet(FireCommand cmd)
     {
         SpawnedTower tower = towerObjs[cmd.TowerIndex];
-        if (tower.Instance == null) return; 
+        if (tower.Instance == null)
+            return; 
         
-        Addressables.InstantiateAsync("BulletPrefab").Completed += (handle) =>
-        {
-            if (handle.Status == AsyncOperationStatus.Succeeded)
+        if (notActiveBulletIds.Count == 0)
+        {  
+            Addressables.InstantiateAsync("BulletPrefab").Completed += (handle) =>
             {
-                GameObject bullet = handle.Result;
-                bullet.transform.position = tower.Instance.transform.position;
-                
-                Vector2 dir = (cmd.TargetPosition - (Vector2)bullet.transform.position).normalized;
-                
-                bullet.GetComponent<Rigidbody2D>().linearVelocity = dir * 10f;
-            }
-        };
+                if (handle.Status == AsyncOperationStatus.Succeeded)
+                {
+                    SpawnedCannonBullet bullet = new SpawnedCannonBullet
+                    {
+                        Instance = handle.Result,
+                        Handle = handle,
+                        lifeTime = 1
+                    };
+
+                    bullet.Instance.transform.position = tower.Instance.transform.position;
+                    
+                    Vector2 dir = (cmd.TargetPosition - (Vector2)bullet.Instance.transform.position).normalized;
+                    
+                    bullet.Instance.GetComponent<Rigidbody2D>().linearVelocity = dir * 10f;
+
+                    bulletObjs.Add(bullet);
+                    
+                    int newIndex = bulletObjs.Count - 1;
+                }
+            };
+        }
+        else
+        {
+            int ind = notActiveBulletIds.Pop();
+
+            SpawnedCannonBullet bullet = bulletObjs[ind];
+
+            bullet.Instance.transform.position = tower.Instance.transform.position;
+            bullet.lifeTime = 1;
+            bullet.Instance.SetActive(true);
+            
+            Vector2 dir = (cmd.TargetPosition - (Vector2)bullet.Instance.transform.position).normalized;
+            
+            bullet.Instance.GetComponent<Rigidbody2D>().linearVelocity = dir * 10f;
+
+            bulletObjs[ind] = bullet;
+        }
     }
 
     public void OnDestroy()
@@ -146,5 +201,27 @@ public class TowerManager : MonoBehaviour
         towersWithCannon.Add(ind);
 
         return ind;
+    }
+
+    void OperateBullets()
+    {
+        for (int i = 0; i < bulletObjs.Count; i++)
+        {
+            SpawnedCannonBullet bullet = bulletObjs[i];
+
+            if (bullet.lifeTime > 0)
+            {
+                bullet.lifeTime += 1;
+            }
+
+            if (bullet.lifeTime > 3000)
+            {
+                bullet.Instance.SetActive(false);
+                bullet.lifeTime = 0;
+                notActiveBulletIds.Push(i);
+            }
+            
+            bulletObjs[i] = bullet;
+        }
     }
 }

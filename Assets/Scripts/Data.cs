@@ -14,6 +14,13 @@ public struct SpawnedTower
     public AsyncOperationHandle<GameObject> Handle;
 }
 
+public struct SpawnedCannonBullet
+{
+    public GameObject Instance;
+    public AsyncOperationHandle<GameObject> Handle;
+    public int lifeTime;
+}
+
 public struct CannonBulletData
 {
     public float x;
