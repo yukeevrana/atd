@@ -1,41 +1,45 @@
 using UnityEngine;
 using UnityEngine.AddressableAssets;
-using UnityEngine.InputSystem;
 using UnityEngine.ResourceManagement.AsyncOperations;
 using System.Collections.Generic;
 
 public class TowerManager : MonoBehaviour
 {
+    public float cannonBulletSpeed = 10f;
+    public int cannonBulletMaxLifetime = 3000;
+
+    // Списки башен и связанных объектов
     private List<TowerData> towersData;
     private List<SpawnedTower> towerObjs;
-    private int allTowersCount;
-    private int loadedTowersCount;
-
     private List<int> towersWithCannon;
+    // private int allTowersCount;
+    // private int loadedTowersCount;
 
-    private List<FireCommand> commandBuffer;
-
-    private GameControls controls;
-
+    // Механика стрельбы из пушки
     private List<SpawnedCannonBullet> bulletObjs;
     private Stack<int> notActiveBulletIds;
 
+    // Пользовательский ввод
+    private GameControls controls;
+    private List<FireCommand> commandBuffer;
+
     void Awake()
     {
-        controls = new GameControls();
-
         towersData = new List<TowerData>();
         towersWithCannon = new List<int>();
-        
+
+        controls = new GameControls();
         commandBuffer = new List<FireCommand>();
 
+        // Изначально задумана одна башня в центре,
+        // но создаю 4 для тестирования и демонстрации
         GenerateTowerData(0, 0);
         GenerateTowerData(5, 0);
         GenerateTowerData(0, 5);
         GenerateTowerData(5, 5);
 
-        allTowersCount = towersData.Count;
-        loadedTowersCount = 0;
+        // allTowersCount = towersData.Count;
+        // loadedTowersCount = 0;
 
         towerObjs = new List<SpawnedTower>();
         for (int i = 0; i < towersData.Count; i++)
@@ -76,7 +80,7 @@ public class TowerManager : MonoBehaviour
 
                     towerObjs[ind] = tower;
 
-                    loadedTowersCount++;
+                    // loadedTowersCount++;
                 }
             };
         }  
@@ -95,11 +99,13 @@ public class TowerManager : MonoBehaviour
     {
         if (controls.Gameplay.Fire.WasPerformedThisFrame())
         {
+            // Получаем позицию курсора
             Vector2 mouseScreenPos = controls.Gameplay.PointerPosition.ReadValue<Vector2>();
-            
             Vector3 worldPos = Camera.main.ScreenToWorldPoint(mouseScreenPos);
             Vector2 targetPos = new Vector2(worldPos.x, worldPos.y);
 
+            // Создаём команду на выстрел в точку курсора 
+            // для всех башен, у которых есть пушка
             foreach (int towerIndex in towersWithCannon)
             {
                 var cmd = new FireCommand
@@ -131,6 +137,7 @@ public class TowerManager : MonoBehaviour
         if (tower.Instance == null)
             return; 
         
+        // Если нет пульки в пуле, создадим новую на позиции башни и выстрелим
         if (notActiveBulletIds.Count == 0)
         {  
             Addressables.InstantiateAsync("BulletPrefab").Completed += (handle) =>
@@ -145,17 +152,14 @@ public class TowerManager : MonoBehaviour
                     };
 
                     bullet.Instance.transform.position = tower.Instance.transform.position;
-                    
                     Vector2 dir = (cmd.TargetPosition - (Vector2)bullet.Instance.transform.position).normalized;
-                    
-                    bullet.Instance.GetComponent<Rigidbody2D>().linearVelocity = dir * 10f;
+                    bullet.Instance.GetComponent<Rigidbody2D>().linearVelocity = dir * cannonBulletSpeed;
 
                     bulletObjs.Add(bullet);
-                    
-                    int newIndex = bulletObjs.Count - 1;
                 }
             };
         }
+        // Есть неактивная пулька в пуле, используем её
         else
         {
             int ind = notActiveBulletIds.Pop();
@@ -167,8 +171,7 @@ public class TowerManager : MonoBehaviour
             bullet.Instance.SetActive(true);
             
             Vector2 dir = (cmd.TargetPosition - (Vector2)bullet.Instance.transform.position).normalized;
-            
-            bullet.Instance.GetComponent<Rigidbody2D>().linearVelocity = dir * 10f;
+            bullet.Instance.GetComponent<Rigidbody2D>().linearVelocity = dir * cannonBulletSpeed;
 
             bulletObjs[ind] = bullet;
         }
@@ -184,6 +187,15 @@ public class TowerManager : MonoBehaviour
                 Addressables.ReleaseInstance(towerObjs[i].Handle);
 
         towerObjs.Clear();
+
+        if (bulletObjs == null)
+            return;
+
+        for (int i = 0; i < bulletObjs.Count; i++)
+            if (bulletObjs[i].Handle.IsValid())
+                Addressables.ReleaseInstance(bulletObjs[i].Handle);
+
+        bulletObjs.Clear();
     }
 
     int GenerateTowerData(float x, float y)
@@ -191,18 +203,18 @@ public class TowerManager : MonoBehaviour
         TowerData td = new TowerData
         {
             x = x,
-            y = y,
-            hasCannon = true
+            y = y
         };
 
         towersData.Add(td);
         int ind = towersData.Count - 1;
-
         towersWithCannon.Add(ind);
 
         return ind;
     }
 
+    // Здесь у пулек считается время жизни 
+    // и отработавшие уходят в пул
     void OperateBullets()
     {
         for (int i = 0; i < bulletObjs.Count; i++)
@@ -214,7 +226,7 @@ public class TowerManager : MonoBehaviour
                 bullet.lifeTime += 1;
             }
 
-            if (bullet.lifeTime > 3000)
+            if (bullet.lifeTime > cannonBulletMaxLifetime)
             {
                 bullet.Instance.SetActive(false);
                 bullet.lifeTime = 0;

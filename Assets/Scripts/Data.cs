@@ -5,7 +5,6 @@ public struct TowerData
 {
     public float x;
     public float y;
-    public bool hasCannon;
 }
 
 public struct SpawnedTower
