@@ -17,11 +17,17 @@ public struct SpawnedCannonBullet
 {
     public GameObject Instance;
     public AsyncOperationHandle<GameObject> Handle;
-    public int lifeTime;
+    public Vector3 velocity;
+    public int life_time;
+    public float radius;
+    public float damage;
 }
 
-public struct CannonBulletData
+public struct SpawnedSquare
 {
-    public float x;
-    public float y;
+    public GameObject Instance;
+    public AsyncOperationHandle<GameObject> Handle;
+    public Vector3 velocity;
+    public float radius;
+    public float hit_points;
 }

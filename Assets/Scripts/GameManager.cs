@@ -1,12 +1,13 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.ResourceManagement.AsyncOperations;
-using System.Collections.Generic;
 
-public class TowerManager : MonoBehaviour
+public class GameManager : MonoBehaviour
 {
     public float cannonBulletSpeed = 10f;
-    public int cannonBulletMaxLifetime = 3000;
+    public int cannonBulletMaxlife_time = 3000;
+    public float spawn_radius = 100f;
 
     // Списки башен и связанных объектов
     private List<TowerData> towersData;
@@ -22,6 +23,10 @@ public class TowerManager : MonoBehaviour
     // Пользовательский ввод
     private GameControls controls;
     private List<FireCommand> commandBuffer;
+
+    // Враги-квадраты
+    private List<SpawnedSquare> squares_objs;
+    private Stack<int> notActiveSquareIds;
 
     void Awake()
     {
@@ -148,12 +153,13 @@ public class TowerManager : MonoBehaviour
                     {
                         Instance = handle.Result,
                         Handle = handle,
-                        lifeTime = 1
+                        life_time = 1,
+                        radius = 0.5f,
+                        damage = 1
                     };
 
                     bullet.Instance.transform.position = tower.Instance.transform.position;
-                    Vector2 dir = (cmd.TargetPosition - (Vector2)bullet.Instance.transform.position).normalized;
-                    bullet.Instance.GetComponent<Rigidbody2D>().linearVelocity = dir * cannonBulletSpeed;
+                    bullet.velocity = (cmd.TargetPosition - (Vector2)handle.Result.transform.position).normalized;
 
                     bulletObjs.Add(bullet);
                 }
@@ -167,14 +173,52 @@ public class TowerManager : MonoBehaviour
             SpawnedCannonBullet bullet = bulletObjs[ind];
 
             bullet.Instance.transform.position = tower.Instance.transform.position;
-            bullet.lifeTime = 1;
+            bullet.life_time = 1;
+            bullet.velocity = (cmd.TargetPosition - (Vector2)bullet.Instance.transform.position).normalized;
             bullet.Instance.SetActive(true);
-            
-            Vector2 dir = (cmd.TargetPosition - (Vector2)bullet.Instance.transform.position).normalized;
-            bullet.Instance.GetComponent<Rigidbody2D>().linearVelocity = dir * cannonBulletSpeed;
 
             bulletObjs[ind] = bullet;
         }
+    }
+
+    void SpawnEnemy()
+    {
+        // Если нет врага в пуле, создадим нового на случайной позиции и отправим в сторону игрока
+        if (notActiveSquareIds.Count == 0)
+        {
+            Addressables.InstantiateAsync("SquarePrefab").Completed += (handle) =>
+            {
+                if (handle.Status == AsyncOperationStatus.Succeeded)
+                {
+                    SpawnedSquare bullet = new SpawnedSquare
+                    {
+                        Instance = handle.Result,
+                        Handle = handle,
+                        radius = 0.5f,
+                        hit_points = 1
+                    };
+
+                    //bullet.Instance.transform.position = (Vector3)Random.onUnitCircle * spawn_radius;
+                    //bullet.velocity = (cmd.TargetPosition - (Vector2)handle.Result.transform.position).normalized;
+
+                    //bulletObjs.Add(bullet);
+                }
+            };
+        }
+        //// Есть неактивная пулька в пуле, используем её
+        //else
+        //{
+        //    int ind = notActiveBulletIds.Pop();
+
+        //    SpawnedCannonBullet bullet = bulletObjs[ind];
+
+        //    bullet.Instance.transform.position = tower.Instance.transform.position;
+        //    bullet.life_time = 1;
+        //    bullet.velocity = (cmd.TargetPosition - (Vector2)bullet.Instance.transform.position).normalized;
+        //    bullet.Instance.SetActive(true);
+
+        //    bulletObjs[ind] = bullet;
+        //}
     }
 
     public void OnDestroy()
@@ -221,19 +265,22 @@ public class TowerManager : MonoBehaviour
         {
             SpawnedCannonBullet bullet = bulletObjs[i];
 
-            if (bullet.lifeTime > 0)
+            if (bullet.life_time > 0)
             {
-                bullet.lifeTime += 1;
+                bullet.life_time += 1;
+                bullet.Instance.transform.position += bullet.velocity * cannonBulletSpeed * Time.deltaTime;
             }
 
-            if (bullet.lifeTime > cannonBulletMaxLifetime)
+            if (bullet.life_time > cannonBulletMaxlife_time)
             {
                 bullet.Instance.SetActive(false);
-                bullet.lifeTime = 0;
+                bullet.life_time = 0;
                 notActiveBulletIds.Push(i);
             }
             
             bulletObjs[i] = bullet;
         }
     }
+
+
 }

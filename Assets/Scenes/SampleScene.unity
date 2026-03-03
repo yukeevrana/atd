@@ -351,7 +351,7 @@ GameObject:
   - component: {fileID: 815354621}
   - component: {fileID: 815354620}
   m_Layer: 0
-  m_Name: TowerManager
+  m_Name: GameManager
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -369,6 +369,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3035691cd9c8be544add93c39efb688a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TowerManager
+  cannonBulletSpeed: 10
+  cannonBulletMaxlife_time: 3000
 --- !u!4 &815354621
 Transform:
   m_ObjectHideFlags: 0
